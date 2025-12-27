@@ -3,7 +3,8 @@ import {
   Settings, Play, RefreshCw, Star, 
   CheckCircle, XCircle, ChevronRight, Trophy,
   Zap, ArrowRight, Home, AlertCircle, Delete,
-  Calculator
+  Calculator, BookOpen, ArrowLeft, Lightbulb, 
+  Layers, Brain
 } from 'lucide-react';
 import { 
   Operation, Difficulty, GameSettings, Question, GameResult 
@@ -11,6 +12,7 @@ import {
 import { generateQuestion, getDefaultSettings, getNextDifficulty } from './utils/math';
 import { playSound, speakUltraman } from './utils/audio';
 import { generateUltramanSummary, generateErrorExplanation } from './services/geminiService';
+import { getRandomUltramanImageSync, getRandomUltramanImagesSync, preloadImageList } from './utils/images';
 
 // --- Constants ---
 
@@ -167,6 +169,17 @@ const END_GAME_COMMENTS = {
 // --- Components ---
 
 const UltramanBadge = ({ mood }: { mood: string }) => {
+  const [badgeImage, setBadgeImage] = useState<string | null>(null);
+  
+  // 加载随机图片
+  useEffect(() => {
+    const loadImage = async () => {
+      await preloadImageList();
+      setBadgeImage(getRandomUltramanImageSync());
+    };
+    loadImage();
+  }, [mood]); // 当mood变化时重新加载图片
+  
   // Visual representation of Ultraman's "Color Timer"
   const getColor = () => {
     switch(mood) {
@@ -179,11 +192,23 @@ const UltramanBadge = ({ mood }: { mood: string }) => {
 
   return (
     <div className="flex flex-col items-center justify-center space-y-4 mb-6">
-       <div className={`relative w-24 h-24 rounded-full bg-slate-200 border-4 border-slate-300 flex items-center justify-center shadow-xl`}>
-          {/* The Color Timer */}
-          <div className={`w-12 h-12 rounded-full ${getColor()} shadow-[0_0_30px_5px] transition-all duration-1000`}></div>
-          {/* Silver body plating simulation */}
-          <div className="absolute -inset-1 border-2 border-slate-400 rounded-full opacity-50"></div>
+       <div className={`relative w-32 h-32 rounded-full bg-slate-200 border-4 border-slate-300 flex items-center justify-center shadow-xl overflow-hidden`}>
+          {/* 奥特曼图片或彩色计时器 */}
+          {badgeImage ? (
+            <img 
+              src={badgeImage} 
+              alt="奥特曼" 
+              className="w-full h-full object-cover"
+              onError={() => setBadgeImage(null)}
+            />
+          ) : (
+            <>
+              {/* The Color Timer */}
+              <div className={`w-12 h-12 rounded-full ${getColor()} shadow-[0_0_30px_5px] transition-all duration-1000`}></div>
+              {/* Silver body plating simulation */}
+              <div className="absolute -inset-1 border-2 border-slate-400 rounded-full opacity-50"></div>
+            </>
+          )}
        </div>
        <div className="text-sm font-bold text-slate-500 tracking-widest uppercase">宇宙警备队 (Ultra Guardian)</div>
     </div>
@@ -255,11 +280,265 @@ const VerticalWorking = ({ q }: { q: Question }) => {
   );
 };
 
+// --- Secrets & Tricks Components ---
+
+const CHINESE_NUMS = ['','一','二','三','四','五','六','七','八','九', '十'];
+
+const getKouJue = (a: number, b: number) => {
+  const p = a * b;
+  let res = CHINESE_NUMS[a] + CHINESE_NUMS[b];
+  if (p < 10) {
+    res += '得' + CHINESE_NUMS[p];
+  } else if (p % 10 === 0) {
+    res += CHINESE_NUMS[p / 10] + '十';
+  } else {
+    const tens = Math.floor(p / 10);
+    const units = p % 10;
+    let suffix = '';
+    if (tens === 1) {
+        if (units === 0) suffix = '一十'; 
+        else suffix = '十' + CHINESE_NUMS[units];
+    } else {
+        suffix = CHINESE_NUMS[tens] + '十' + (units > 0 ? CHINESE_NUMS[units] : '');
+    }
+    res += suffix;
+  }
+  return res;
+};
+
+// 1. Multiplication Table Component
+const MultiplicationTable = () => (
+  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-in slide-in-from-bottom-4 duration-500">
+    {[1, 2, 3, 4, 5, 6, 7, 8, 9].map((i) => (
+      <div key={i} className="bg-white/80 backdrop-blur-sm p-5 rounded-2xl shadow-sm border border-white/50 hover:scale-[1.02] transition-transform duration-200">
+          <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-100">
+            <div className="w-8 h-8 rounded-lg bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-lg">{i}</div>
+            <h3 className="font-bold text-slate-700">{i} 的口诀</h3>
+          </div>
+          <div className="space-y-2">
+            {Array.from({ length: i }, (_, index) => index + 1).map((j) => (
+              <div key={j} className="flex justify-between items-center text-slate-600 font-medium">
+                <span className="font-mono text-sm tracking-tight text-slate-400">{j} × {i} = {j * i}</span>
+                <span className="text-blue-600 font-bold text-base">
+                  {getKouJue(j, i)}
+                </span>
+              </div>
+            ))}
+          </div>
+      </div>
+    ))}
+  </div>
+);
+
+// 2. Basic Tricks (Add/Sub) Component
+const BasicMathTricks = () => (
+  <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
+    {/* 凑十法 */}
+    <div className="bg-gradient-to-br from-orange-50 to-orange-100 p-6 rounded-3xl border border-orange-200 shadow-sm relative overflow-hidden">
+      <div className="absolute right-[-20px] top-[-20px] w-24 h-24 bg-orange-200 rounded-full opacity-30"></div>
+      <div className="flex items-center gap-3 mb-4">
+        <div className="p-2 bg-orange-500 rounded-xl text-white shadow-lg shadow-orange-200">
+          <Layers className="w-6 h-6" />
+        </div>
+        <h3 className="text-xl font-black text-slate-800">凑十法 (加法)</h3>
+      </div>
+      <div className="bg-white/60 p-4 rounded-xl mb-4 font-medium text-slate-700 italic border-l-4 border-orange-400">
+        "一九一九好朋友，二八二八手拉手，<br/>
+         三七三七真亲密，四六四六一起走，<br/>
+         五五凑成一双手。"
+      </div>
+      <div className="bg-white p-4 rounded-xl shadow-sm">
+        <div className="text-sm text-slate-400 mb-2 font-bold uppercase">实战演示: 9 + 6 = ?</div>
+        <div className="flex items-center gap-2 text-lg font-mono font-bold text-slate-700">
+           <span>9</span> 
+           <span>+</span>
+           <span className="flex flex-col items-center leading-none">
+             <span>6</span>
+             <span className="text-xs font-normal text-slate-400 flex gap-4 mt-1 border-t border-slate-300 pt-1 w-full justify-between px-1">
+               <span>1</span><span>5</span>
+             </span>
+           </span>
+           <span>=</span>
+           <span className="text-orange-600">15</span>
+        </div>
+        <p className="text-xs text-slate-500 mt-2">
+          秘诀：看大数(9)，分小数(6分成1和5)，凑成十(9+1=10)，加剩数(10+5=15)。
+        </p>
+      </div>
+    </div>
+
+    {/* 破十法 */}
+    <div className="bg-gradient-to-br from-purple-50 to-purple-100 p-6 rounded-3xl border border-purple-200 shadow-sm relative overflow-hidden">
+      <div className="absolute right-[-20px] top-[-20px] w-24 h-24 bg-purple-200 rounded-full opacity-30"></div>
+      <div className="flex items-center gap-3 mb-4">
+        <div className="p-2 bg-purple-500 rounded-xl text-white shadow-lg shadow-purple-200">
+          <Layers className="w-6 h-6" />
+        </div>
+        <h3 className="text-xl font-black text-slate-800">破十法 (减法)</h3>
+      </div>
+      <div className="bg-white/60 p-4 rounded-xl mb-4 font-medium text-slate-700 italic border-l-4 border-purple-400">
+        "减九加一，减八加二，<br/>
+         减七加三，减六加四，<br/>
+         减五加五。"
+      </div>
+      <div className="bg-white p-4 rounded-xl shadow-sm">
+        <div className="text-sm text-slate-400 mb-2 font-bold uppercase">实战演示: 13 - 9 = ?</div>
+        <div className="flex items-center gap-2 text-lg font-mono font-bold text-slate-700">
+           <span className="flex flex-col items-center leading-none">
+             <span>13</span>
+             <span className="text-xs font-normal text-slate-400 flex gap-2 mt-1 border-t border-slate-300 pt-1 w-full justify-between px-1">
+               <span>10</span><span>3</span>
+             </span>
+           </span>
+           <span>-</span>
+           <span>9</span>
+           <span>=</span>
+           <span className="text-purple-600">4</span>
+        </div>
+        <p className="text-xs text-slate-500 mt-2">
+          秘诀：把13分成10和3。先用10减9剩1，再把1加上3等于4。
+        </p>
+      </div>
+    </div>
+  </div>
+);
+
+// 3. Fast Tricks (Multiplication) Component
+const FastMathTricks = () => (
+  <div className="space-y-6 animate-in slide-in-from-bottom-4 duration-500">
+    {/* Multiply by 11 */}
+    <div className="bg-gradient-to-br from-green-50 to-green-100 p-6 rounded-3xl border border-green-200 shadow-sm relative overflow-hidden">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="p-2 bg-green-500 rounded-xl text-white shadow-lg shadow-green-200">
+          <Zap className="w-6 h-6" />
+        </div>
+        <h3 className="text-xl font-black text-slate-800">神奇的 11 (乘法)</h3>
+      </div>
+      <div className="text-slate-600 font-medium mb-4">
+        口诀：<span className="font-bold text-green-700">"两边一拉，中间相加"</span>
+      </div>
+      <div className="bg-white p-4 rounded-xl shadow-sm mb-2">
+        <div className="text-sm text-slate-400 mb-2 font-bold uppercase">例子: 23 × 11 = ?</div>
+        <div className="flex flex-col gap-2">
+           <div className="flex items-center justify-center gap-4 text-2xl font-black text-slate-800">
+             <span>2</span>
+             <span className="text-sm text-green-500 font-normal bg-green-50 px-2 py-1 rounded-full">(2+3)</span>
+             <span>3</span>
+           </div>
+           <div className="text-center text-green-600 font-bold text-xl">= 253</div>
+        </div>
+      </div>
+      <p className="text-xs text-slate-500">注意：如果中间相加满十，记得往前进一哦！(比如 57x11 {'->'} 5(12)7 {'->'} 627)</p>
+    </div>
+
+    {/* Multiply by 5 */}
+    <div className="bg-gradient-to-br from-blue-50 to-blue-100 p-6 rounded-3xl border border-blue-200 shadow-sm relative overflow-hidden">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="p-2 bg-blue-500 rounded-xl text-white shadow-lg shadow-blue-200">
+          <Zap className="w-6 h-6" />
+        </div>
+        <h3 className="text-xl font-black text-slate-800">乘以 5 的捷径</h3>
+      </div>
+      <div className="text-slate-600 font-medium mb-4">
+        口诀：<span className="font-bold text-blue-700">"除以2，再乘10"</span> (或者：减半再加0)
+      </div>
+      <div className="bg-white p-4 rounded-xl shadow-sm">
+        <div className="text-sm text-slate-400 mb-2 font-bold uppercase">例子: 18 × 5 = ?</div>
+        <div className="flex items-center gap-2 text-lg font-mono font-bold text-slate-700">
+           <span>18</span> 
+           <ArrowRight className="w-4 h-4 text-slate-400" />
+           <span>9</span>
+           <ArrowRight className="w-4 h-4 text-slate-400" />
+           <span className="text-blue-600">90</span>
+        </div>
+        <p className="text-xs text-slate-500 mt-2">
+          解释：18的一半是9，后面加个0就是90。如果是奇数(如17)，一半是8.5，去点小数点就是85。
+        </p>
+      </div>
+    </div>
+  </div>
+);
+
+const SecretsView = ({ onBack }: { onBack: () => void }) => {
+  const [activeTab, setActiveTab] = useState<'table' | 'basic' | 'fast'>('table');
+
+  return (
+    <div className="max-w-4xl mx-auto w-full h-screen flex flex-col p-4 bg-[#f5f5f7]">
+      {/* Header */}
+      <div className="flex items-center gap-4 mb-4 pt-2">
+        <button 
+          onClick={() => { playSound('click'); onBack(); }}
+          className="p-3 bg-white text-slate-600 rounded-xl shadow-sm border border-slate-200 hover:bg-slate-50 transition-all active:scale-95"
+        >
+          <ArrowLeft className="w-6 h-6" />
+        </button>
+        <div className="flex items-center gap-2">
+           <BookOpen className="w-8 h-8 text-blue-600" />
+           <h1 className="text-2xl font-black text-slate-800 tracking-tight">奥特数学秘籍</h1>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-2 mb-6 p-1 bg-white/50 backdrop-blur rounded-2xl border border-slate-200/50">
+        <button 
+          onClick={() => setActiveTab('table')}
+          className={`flex-1 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+            activeTab === 'table' ? 'bg-white shadow-md text-blue-600' : 'text-slate-500 hover:bg-white/50'
+          }`}
+        >
+          <BookOpen className="w-4 h-4" /> 九九乘法
+        </button>
+        <button 
+          onClick={() => setActiveTab('basic')}
+          className={`flex-1 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+            activeTab === 'basic' ? 'bg-white shadow-md text-orange-500' : 'text-slate-500 hover:bg-white/50'
+          }`}
+        >
+          <Layers className="w-4 h-4" /> 加减口诀
+        </button>
+        <button 
+          onClick={() => setActiveTab('fast')}
+          className={`flex-1 py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+            activeTab === 'fast' ? 'bg-white shadow-md text-green-600' : 'text-slate-500 hover:bg-white/50'
+          }`}
+        >
+          <Zap className="w-4 h-4" /> 速算怪招
+        </button>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto hide-scrollbar pb-10">
+        {activeTab === 'table' && <MultiplicationTable />}
+        {activeTab === 'basic' && <BasicMathTricks />}
+        {activeTab === 'fast' && <FastMathTricks />}
+        
+        <div className="mt-8 text-center text-slate-400 text-sm pb-8">
+           熟读口诀，打败数学怪兽！
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- Views ---
 
 // 1. Settings View
-const SettingsView = ({ onStart, initialSettings }: { onStart: (s: GameSettings) => void, initialSettings: GameSettings }) => {
+const SettingsView = ({ onStart, initialSettings, onOpenSecrets }: { 
+  onStart: (s: GameSettings) => void, 
+  initialSettings: GameSettings,
+  onOpenSecrets: () => void 
+}) => {
   const [settings, setSettings] = useState<GameSettings>(initialSettings);
+  const [headerImage, setHeaderImage] = useState<string | null>(null);
+  
+  // 加载随机图片
+  useEffect(() => {
+    const loadImage = async () => {
+      await preloadImageList();
+      setHeaderImage(getRandomUltramanImageSync());
+    };
+    loadImage();
+  }, []);
 
   const toggleOp = (op: Operation) => {
     const current = settings.operations;
@@ -276,9 +555,23 @@ const SettingsView = ({ onStart, initialSettings }: { onStart: (s: GameSettings)
   return (
     <div className="max-w-md mx-auto w-full p-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       <div className="text-center mb-10">
-        <div className="inline-block p-3 bg-red-500 rounded-2xl shadow-lg mb-4">
-          <Zap className="w-10 h-10 text-white" />
-        </div>
+        {headerImage ? (
+          <div className="inline-block mb-4 relative">
+            <img 
+              src={headerImage} 
+              alt="奥特曼" 
+              className="w-32 h-32 object-cover rounded-3xl shadow-2xl border-4 border-red-500 animate-pulse"
+              onError={() => setHeaderImage(null)}
+            />
+            <div className="absolute -bottom-2 -right-2 bg-blue-500 rounded-full p-2 shadow-lg">
+              <Zap className="w-6 h-6 text-white" />
+            </div>
+          </div>
+        ) : (
+          <div className="inline-block p-3 bg-red-500 rounded-2xl shadow-lg mb-4">
+            <Zap className="w-10 h-10 text-white" />
+          </div>
+        )}
         <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">奥特数学 (UltraMath)</h1>
         <p className="text-slate-500 mt-2">准备好执行任务了吗？</p>
       </div>
@@ -367,6 +660,17 @@ const SettingsView = ({ onStart, initialSettings }: { onStart: (s: GameSettings)
           <Play className="w-5 h-5 fill-current" />
           开始任务
         </button>
+
+        <button
+          onClick={() => {
+            playSound('click');
+            onOpenSecrets();
+          }}
+          className="w-full py-3 bg-white text-slate-600 border border-slate-200 rounded-2xl font-bold text-base hover:bg-slate-50 active:scale-95 transition-all flex items-center justify-center gap-2"
+        >
+          <BookOpen className="w-5 h-5 text-blue-500" />
+          奥特口算秘籍
+        </button>
       </div>
     </div>
   );
@@ -383,6 +687,19 @@ const GameView = ({ settings, onComplete, onHome }: {
   const [input, setInput] = useState('');
   const [showFeedback, setShowFeedback] = useState<'none' | 'correct' | 'wrong'>('none');
   const [staticExplanation, setStaticExplanation] = useState<string>('');
+  const [decorationImages, setDecorationImages] = useState<string[]>([]);
+  const [feedbackImage, setFeedbackImage] = useState<string | null>(null);
+  
+  // 加载随机装饰图片
+  useEffect(() => {
+    const loadImages = async () => {
+      await preloadImageList();
+      // 加载3-5张随机图片作为背景装饰
+      const count = Math.floor(Math.random() * 3) + 3;
+      setDecorationImages(getRandomUltramanImagesSync(count));
+    };
+    loadImages();
+  }, []);
 
   // Initialize questions
   useEffect(() => {
@@ -415,6 +732,7 @@ const GameView = ({ settings, onComplete, onHome }: {
       const praise = PRAISE_PHRASES[Math.floor(Math.random() * PRAISE_PHRASES.length)];
       speakUltraman(praise);
       
+      setFeedbackImage(getRandomUltramanImageSync()); // 随机选择一张图片
       setShowFeedback('correct');
       // Pass the *updated* array to nextQuestion to ensure we don't rely on stale state
       setTimeout(() => nextQuestion(newQuestions), 1500);
@@ -423,6 +741,7 @@ const GameView = ({ settings, onComplete, onHome }: {
       const encourage = ENCOURAGE_PHRASES[Math.floor(Math.random() * ENCOURAGE_PHRASES.length)];
       speakUltraman(encourage);
 
+      setFeedbackImage(getRandomUltramanImageSync()); // 随机选择一张图片
       setShowFeedback('wrong');
       
       // Get static math tip
@@ -492,8 +811,27 @@ const GameView = ({ settings, onComplete, onHome }: {
         <div className="bg-white/80 backdrop-blur-2xl rounded-[40px] shadow-2xl shadow-indigo-100 p-8 text-center border border-white relative overflow-hidden transition-all duration-300">
             {/* Beam Decoration */}
             <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-red-500 via-slate-300 to-blue-500 opacity-50"></div>
+            
+            {/* 背景装饰图片（多图拼接效果） */}
+            {decorationImages.length > 0 && (
+              <div className="absolute inset-0 opacity-5 pointer-events-none overflow-hidden">
+                <div className="absolute top-4 right-4 w-24 h-24">
+                  <img src={decorationImages[0]} alt="" className="w-full h-full object-cover rounded-full" />
+                </div>
+                {decorationImages.length > 1 && (
+                  <div className="absolute bottom-4 left-4 w-20 h-20">
+                    <img src={decorationImages[1]} alt="" className="w-full h-full object-cover rounded-full" />
+                  </div>
+                )}
+                {decorationImages.length > 2 && (
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16">
+                    <img src={decorationImages[2]} alt="" className="w-full h-full object-cover rounded-full" />
+                  </div>
+                )}
+              </div>
+            )}
 
-            <div className="text-6xl font-black text-slate-800 mb-8 tracking-tighter">
+            <div className="text-6xl font-black text-slate-800 mb-8 tracking-tighter relative z-10">
               {currentQ.num1} {currentQ.operation} {currentQ.num2}
             </div>
 
@@ -521,8 +859,27 @@ const GameView = ({ settings, onComplete, onHome }: {
             </div>
 
             {/* Feedback Overlay */}
+            {showFeedback === 'correct' && feedbackImage && (
+              <div className="mt-4 bg-green-50 rounded-xl p-4 text-center animate-in zoom-in duration-300 relative z-10">
+                <img 
+                  src={feedbackImage} 
+                  alt="奥特曼" 
+                  className="w-24 h-24 object-cover rounded-full mx-auto mb-2 border-4 border-green-400 shadow-lg"
+                />
+                <div className="text-green-600 font-bold text-lg">回答正确！</div>
+              </div>
+            )}
             {showFeedback === 'wrong' && (
-              <div className="mt-4 bg-red-50 rounded-xl p-3 text-left animate-in fade-in slide-in-from-top-2">
+              <div className="mt-4 bg-red-50 rounded-xl p-3 text-left animate-in fade-in slide-in-from-top-2 relative z-10">
+                {feedbackImage && (
+                  <div className="mb-3 text-center">
+                    <img 
+                      src={feedbackImage} 
+                      alt="奥特曼" 
+                      className="w-20 h-20 object-cover rounded-full mx-auto border-4 border-red-400 shadow-md opacity-80"
+                    />
+                  </div>
+                )}
                 <div className="flex flex-row items-start gap-3">
                   {/* Left Side: Text */}
                   <div className="flex-1">
@@ -598,7 +955,8 @@ const SummaryView = ({ result, currentDifficulty, onRestart, onNextLevel, onHome
   onHome: () => void
 }) => {
   const [aiData, setAiData] = useState<{message: string, mood: string} | null>(null);
-
+  const [celebrationImages, setCelebrationImages] = useState<string[]>([]);
+  
   const percentage = (result.correctCount / result.totalQuestions) * 100;
   const isPerfect = result.correctCount === result.totalQuestions;
   const wrongQuestions = result.questions.filter(q => !q.isCorrect);
@@ -612,6 +970,16 @@ const SummaryView = ({ result, currentDifficulty, onRestart, onNextLevel, onHome
   };
 
   useEffect(() => {
+    // 加载庆祝图片（根据成绩显示不同数量的图片）
+    const loadImages = async () => {
+      await preloadImageList();
+      const pct = (result.correctCount / result.totalQuestions) * 100;
+      // 根据成绩显示不同数量的图片：满分显示更多
+      const count = pct === 100 ? 5 : pct >= 80 ? 3 : pct >= 60 ? 2 : 1;
+      setCelebrationImages(getRandomUltramanImagesSync(count));
+    };
+    loadImages();
+    
     // 1. Generate text summary (Instant now)
     const data = generateUltramanSummary(result.correctCount, result.totalQuestions);
     setAiData(data);
@@ -637,6 +1005,21 @@ const SummaryView = ({ result, currentDifficulty, onRestart, onNextLevel, onHome
         
         <div className="mt-8 animate-in zoom-in-95 duration-500 w-full flex flex-col items-center">
           <UltramanBadge mood={aiData?.mood || 'encouraging'} />
+          
+          {/* 庆祝图片（多图拼接展示） */}
+          {celebrationImages.length > 0 && (
+            <div className="flex gap-2 mb-4 justify-center flex-wrap">
+              {celebrationImages.map((img, idx) => (
+                <img 
+                  key={idx}
+                  src={img} 
+                  alt="奥特曼" 
+                  className="w-16 h-16 object-cover rounded-full border-2 border-yellow-400 shadow-lg animate-in zoom-in duration-500"
+                  style={{ animationDelay: `${idx * 100}ms` }}
+                />
+              ))}
+            </div>
+          )}
 
           <h2 className="text-3xl font-black text-slate-800 mb-2">
             {isPerfect ? "奥特曼胜利！" : "任务完成"}
@@ -651,17 +1034,36 @@ const SummaryView = ({ result, currentDifficulty, onRestart, onNextLevel, onHome
             ))}
           </div>
 
-          <div className="bg-white/70 backdrop-blur-xl p-6 rounded-3xl shadow-xl w-full text-center border border-white mb-6">
-            <div className="text-5xl font-black text-slate-800 mb-2">
-              {result.correctCount}<span className="text-2xl text-slate-400">/{result.totalQuestions}</span>
-            </div>
-            <p className="text-slate-500 font-medium">答对数量</p>
+          <div className="bg-white/70 backdrop-blur-xl p-6 rounded-3xl shadow-xl w-full text-center border border-white mb-6 relative overflow-hidden">
+            {/* 背景装饰图片 */}
+            {celebrationImages.length > 0 && (
+              <div className="absolute inset-0 opacity-10 pointer-events-none">
+                <img 
+                  src={celebrationImages[0]} 
+                  alt="" 
+                  className="absolute top-2 right-2 w-24 h-24 object-cover rounded-full"
+                />
+                {celebrationImages.length > 1 && (
+                  <img 
+                    src={celebrationImages[1]} 
+                    alt="" 
+                    className="absolute bottom-2 left-2 w-20 h-20 object-cover rounded-full"
+                  />
+                )}
+              </div>
+            )}
+            <div className="relative z-10">
+              <div className="text-5xl font-black text-slate-800 mb-2">
+                {result.correctCount}<span className="text-2xl text-slate-400">/{result.totalQuestions}</span>
+              </div>
+              <p className="text-slate-500 font-medium">答对数量</p>
 
-            {/* Message Display */}
-            <div className="mt-4 p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
-              <p className="text-slate-700 italic font-medium leading-relaxed">
-                "{aiData ? aiData.message : "正在接收来自M78星云的信号..."}"
-              </p>
+              {/* Message Display */}
+              <div className="mt-4 p-4 bg-blue-50/50 rounded-2xl border border-blue-100">
+                <p className="text-slate-700 italic font-medium leading-relaxed">
+                  "{aiData ? aiData.message : "正在接收来自M78星云的信号..."}"
+                </p>
+              </div>
             </div>
           </div>
           
@@ -757,7 +1159,7 @@ const SummaryView = ({ result, currentDifficulty, onRestart, onNextLevel, onHome
 // --- Main App Controller ---
 
 export default function App() {
-  const [view, setView] = useState<'settings' | 'game' | 'summary'>('settings');
+  const [view, setView] = useState<'settings' | 'game' | 'summary' | 'secrets'>('settings');
   const [settings, setSettings] = useState<GameSettings>(getDefaultSettings(Difficulty.C));
   const [lastResult, setLastResult] = useState<GameResult | null>(null);
 
@@ -790,7 +1192,11 @@ export default function App() {
   return (
     <div className="min-h-screen w-full bg-[#f5f5f7] flex items-center justify-center text-slate-800 selection:bg-blue-100">
       {view === 'settings' && (
-        <SettingsView onStart={startGame} initialSettings={settings} />
+        <SettingsView 
+          onStart={startGame} 
+          initialSettings={settings} 
+          onOpenSecrets={() => setView('secrets')}
+        />
       )}
       {view === 'game' && (
         <GameView settings={settings} onComplete={handleGameComplete} onHome={goHome} />
@@ -803,6 +1209,9 @@ export default function App() {
           onNextLevel={nextLevel}
           onHome={goHome}
         />
+      )}
+      {view === 'secrets' && (
+        <SecretsView onBack={() => setView('settings')} />
       )}
     </div>
   );
