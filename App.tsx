@@ -10,7 +10,7 @@ import {
   Operation, Difficulty, GameSettings, Question, GameResult 
 } from './types';
 import { generateQuestion, getDefaultSettings, getNextDifficulty } from './utils/math';
-import { playSound, speakUltraman } from './utils/audio';
+import { playSound, speakUltraman, initSpeechSynthesis } from './utils/audio';
 import { generateUltramanSummary, generateErrorExplanation } from './services/geminiService';
 import { getRandomUltramanImageSync, getRandomUltramanImagesSync, preloadImageList } from './utils/images';
 
@@ -652,6 +652,8 @@ const SettingsView = ({ onStart, initialSettings, onOpenSecrets }: {
 
         <button
           onClick={() => {
+            // 在用户交互时初始化语音（微信浏览器要求）
+            initSpeechSynthesis();
             playSound('start');
             onStart(settings);
           }}
@@ -705,9 +707,8 @@ const GameView = ({ settings, onComplete, onHome }: {
   useEffect(() => {
     const qs = Array.from({ length: 10 }).map((_, i) => generateQuestion(settings, i));
     setQuestions(qs);
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.getVoices();
-    }
+    // 初始化语音合成（在用户交互后）
+    initSpeechSynthesis();
   }, [settings]);
 
   const currentQ = questions[currentIdx];
@@ -769,6 +770,25 @@ const GameView = ({ settings, onComplete, onHome }: {
   const finishGame = async (finalQuestions: Question[]) => {
     playSound('win');
     const correctCount = finalQuestions.filter(q => q.isCorrect).length;
+    
+    // 在用户交互上下文中准备语音（在用户点击提交按钮时）
+    const percentage = (correctCount / 10) * 100;
+    let speechCategory: 'perfect' | 'great' | 'good' | 'bad';
+    if (percentage === 100) speechCategory = 'perfect';
+    else if (percentage >= 80) speechCategory = 'great';
+    else if (percentage >= 60) speechCategory = 'good';
+    else speechCategory = 'bad';
+    
+    const phrases = END_GAME_COMMENTS[speechCategory];
+    const randomPhrase = phrases[Math.floor(Math.random() * phrases.length)];
+    
+    // 在用户交互上下文中立即调用（微信浏览器要求同步或几乎同步调用）
+    // 使用 requestAnimationFrame 保持用户交互上下文，延迟播放以等待音效
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        speakUltraman(randomPhrase);
+      }, 1200);
+    });
     
     onComplete({
       totalQuestions: 10,
@@ -984,17 +1004,8 @@ const SummaryView = ({ result, currentDifficulty, onRestart, onNextLevel, onHome
     const data = generateUltramanSummary(result.correctCount, result.totalQuestions);
     setAiData(data);
 
-    // 2. Play Long Emotional Voice Logic
-    const category = getSpeechCategory();
-    const phrases = END_GAME_COMMENTS[category as keyof typeof END_GAME_COMMENTS];
-    const randomPhrase = phrases[Math.floor(Math.random() * phrases.length)];
-
-    // Wait for the "Win" sound to finish (approx 1s) then speak
-    const timer = setTimeout(() => {
-      speakUltraman(randomPhrase);
-    }, 1200);
-
-    return () => clearTimeout(timer);
+    // 注意：语音播放已经在 finishGame 中的用户交互上下文中触发
+    // 这里不再重复播放，避免在非用户交互上下文中调用导致失败
   }, [result]); // Only run once when result changes
 
   return (

@@ -20,3 +20,5 @@ fs.writeFileSync(OUTPUT_FILE, JSON.stringify(imageList, null, 2), 'utf8');
 console.log(`Generated image list with ${imageFiles.length} images`);
 console.log(`Saved to: ${OUTPUT_FILE}`);
 
+
+
